@@ -3698,6 +3698,8 @@ registerRule(
 		let lastPinchDist = 0
 		let lastMidX = 0
 		let lastMidY = 0
+		let longPressTimer = undefined
+		let deferredTouchStart = undefined
 
 		on.touchstart(e => {
 			e.preventDefault()
@@ -3705,6 +3707,8 @@ registerRule(
 			if (!touch) return
 
 			if (e.touches.length >= 2) {
+				clearTimeout(longPressTimer)
+				longPressTimer = undefined
 				if (!gestureActive) {
 					if (hand.state.mouseup) hand.state.mouseup({clientX: touch.clientX, clientY: touch.clientY, button: 0})
 				}
@@ -3722,29 +3726,62 @@ registerRule(
 			lastTouchY = touch.clientY
 			hand.isTouch = true
 
+			clearTimeout(longPressTimer)
+			const lpx = touch.clientX
+			const lpy = touch.clientY
+
 			const x = touch.clientX / CT_SCALE
 			const y = touch.clientY / CT_SCALE
 			const atom = getAtom(x, y)
 
 			if (atom !== undefined && atom.grabbable) {
-				grabAtom(atom, x, y)
-				hand.pityStartX = touch.clientX
-				hand.pityStartY = touch.clientY
-				hand.pityStartT = 0
-				hand.hasStartedDragging = false
-				hand.touchButton = 0
-				changeHandState(HAND.TOUCHING)
-				return
+				deferredTouchStart = () => {
+					grabAtom(atom, x, y)
+					hand.pityStartX = lpx
+					hand.pityStartY = lpy
+					hand.pityStartT = 0
+					hand.hasStartedDragging = false
+					hand.touchButton = 0
+					changeHandState(HAND.TOUCHING)
+				}
+				longPressTimer = setTimeout(() => {
+					longPressTimer = undefined
+					deferredTouchStart = undefined
+					const cell = pickCell(...getCursorView(lpx, lpy))
+					if (cell !== undefined) {
+						setBrushColour(cell.colour)
+					} else {
+						brushColourCycleIndex++
+						if (brushColourCycleIndex >= brushColourCycle.length) brushColourCycleIndex = 0
+						setBrushColour(brushColourCycle[brushColourCycleIndex])
+					}
+					squareTool.toolbarNeedsColourUpdate = true
+				}, 500)
+			} else {
+				deferredTouchStart = () => {
+					Mouse.Left = false
+					const moveEvent = {clientX: lpx, clientY: lpy, movementX: 0, movementY: 0, button: 0}
+					if (hand.state.mousemove) hand.state.mousemove(moveEvent)
+					state.cursor.previous.x = lpx
+					state.cursor.previous.y = lpy
+					Mouse.Left = true
+					const downEvent = {clientX: lpx, clientY: lpy, button: 0}
+					if (hand.state.mousedown) hand.state.mousedown(downEvent)
+				}
+				longPressTimer = setTimeout(() => {
+					longPressTimer = undefined
+					deferredTouchStart = undefined
+					const cell = pickCell(...getCursorView(lpx, lpy))
+					if (cell !== undefined) {
+						setBrushColour(cell.colour)
+					} else {
+						brushColourCycleIndex++
+						if (brushColourCycleIndex >= brushColourCycle.length) brushColourCycleIndex = 0
+						setBrushColour(brushColourCycle[brushColourCycleIndex])
+					}
+					squareTool.toolbarNeedsColourUpdate = true
+				}, 500)
 			}
-
-			Mouse.Left = false
-			const moveEvent = {clientX: touch.clientX, clientY: touch.clientY, movementX: 0, movementY: 0, button: 0}
-			if (hand.state.mousemove) hand.state.mousemove(moveEvent)
-			state.cursor.previous.x = touch.clientX
-			state.cursor.previous.y = touch.clientY
-			Mouse.Left = true
-			const downEvent = {clientX: touch.clientX, clientY: touch.clientY, button: 0}
-			if (hand.state.mousedown) hand.state.mousedown(downEvent)
 		}, {passive: false})
 
 		on.touchmove(e => {
@@ -3780,6 +3817,16 @@ registerRule(
 
 			if (gestureActive) return
 
+			if (longPressTimer !== undefined) {
+				clearTimeout(longPressTimer)
+				longPressTimer = undefined
+			}
+
+			if (deferredTouchStart !== undefined) {
+				deferredTouchStart()
+				deferredTouchStart = undefined
+			}
+
 			const touch = e.touches[0]
 			if (!touch) return
 			const movementX = touch.clientX - lastTouchX
@@ -3793,11 +3840,26 @@ registerRule(
 
 		on.touchend(e => {
 			e.preventDefault()
+			clearTimeout(longPressTimer)
+			longPressTimer = undefined
 
 			if (gestureActive) {
 				if (e.touches.length < 2) {
 					gestureActive = false
 				}
+				return
+			}
+
+			if (deferredTouchStart !== undefined) {
+				deferredTouchStart()
+				deferredTouchStart = undefined
+				const touch = e.changedTouches[0]
+				if (!touch) return
+				requestAnimationFrame(() => {
+					const upEvent = {clientX: touch.clientX, clientY: touch.clientY, button: 0}
+					if (hand.state.mouseup) hand.state.mouseup(upEvent)
+					hand.isTouch = false
+				})
 				return
 			}
 
@@ -3809,6 +3871,8 @@ registerRule(
 		}, {passive: false})
 
 		on.touchcancel(e => {
+			clearTimeout(longPressTimer)
+			longPressTimer = undefined
 			gestureActive = false
 			if (hand.state.mouseup) {
 				const touch = e.changedTouches[0]
