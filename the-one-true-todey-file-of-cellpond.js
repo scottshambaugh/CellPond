@@ -1050,6 +1050,7 @@ on.load(() => {
 
 		if (e.altKey) {
 			PADDLE.scroll -= 50 * dy
+			clampPaddleScroll()
 			positionPaddles()
 		}
 
@@ -3436,6 +3437,12 @@ registerRule(
 			if (!hand.content.dragLockX) hand.content.x = (hand.pityStartX + dampen(dx, hand.content.attached && !hand.content.noDampen)) / CT_SCALE * DPR + hand.offset.x
 			if (!hand.content.dragLockY) hand.content.y = (hand.pityStartY + dampen(dy, hand.content.attached && !hand.content.noDampen)) / CT_SCALE * DPR + hand.offset.y
 
+			if (hand.content.isPaddle) {
+				PADDLE.scroll += e.movementY / CT_SCALE * DPR
+				clampPaddleScroll()
+				positionPaddles()
+			}
+
 			hand.content.x = clamp(hand.content.x, hand.content.minX, hand.content.maxX)
 			hand.content.y = clamp(hand.content.y, hand.content.minY, hand.content.maxY)
 
@@ -3582,6 +3589,12 @@ registerRule(
 
 			if (!hand.content.dragLockX) hand.content.x = e.clientX / CT_SCALE * DPR + hand.offset.x
 			if (!hand.content.dragLockY) hand.content.y = e.clientY / CT_SCALE * DPR + hand.offset.y
+
+			if (hand.content.isPaddle) {
+				PADDLE.scroll += e.movementY / CT_SCALE * DPR
+				clampPaddleScroll()
+				positionPaddles()
+			}
 
 			hand.content.x = clamp(hand.content.x, hand.content.minX, hand.content.maxX)
 			hand.content.y = clamp(hand.content.y, hand.content.minY, hand.content.maxY)
@@ -8843,6 +8856,20 @@ registerRule(
 			if (atom.isSquare && atom.expanded) atoms.push(...atom.children)
 		}
 		return atoms
+	}
+
+	const clampPaddleScroll = () => {
+		if (paddles.length === 0) return
+		let totalHeight = 0
+		for (const paddle of paddles) {
+			totalHeight += paddle.height + PADDLE_MARGIN
+		}
+		const screenBottom = innerHeight / CT_SCALE * DPR
+		// Don't push paddles below their default position
+		const maxScroll = 0
+		// Allow scrolling up enough to see the last paddle at the bottom of the screen
+		const minScroll = Math.min(0, (screenBottom - PADDLE.y) - totalHeight)
+		PADDLE.scroll = clamp(PADDLE.scroll, minScroll, maxScroll)
 	}
 
 	const positionPaddles = () => {
