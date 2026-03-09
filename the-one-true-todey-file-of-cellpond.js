@@ -3692,6 +3692,13 @@ registerRule(
 		let lastMidY = 0
 		let longPressTimer = undefined
 		let deferredTouchStart = undefined
+		let savedBrushSize = undefined
+		const restoreBrushSize = () => {
+			if (savedBrushSize !== undefined) {
+				state.brush.size = savedBrushSize
+				savedBrushSize = undefined
+			}
+		}
 
 		const LONG_PRESS_MS = 500
 
@@ -3752,6 +3759,8 @@ registerRule(
 			lastTouchX = touch.clientX
 			lastTouchY = touch.clientY
 			hand.isTouch = true
+			savedBrushSize = state.brush.size
+			state.brush.size = 0
 
 			clearTimeout(longPressTimer)
 			const lpx = touch.clientX
@@ -3862,6 +3871,7 @@ registerRule(
 					const upEvent = {clientX: touch.clientX, clientY: touch.clientY, button: 0}
 					if (hand.state.mouseup) hand.state.mouseup(upEvent)
 					hand.isTouch = false
+					restoreBrushSize()
 				})
 				return
 			}
@@ -3871,6 +3881,7 @@ registerRule(
 			const upEvent = {clientX: touch.clientX, clientY: touch.clientY, button: 0}
 			if (hand.state.mouseup) hand.state.mouseup(upEvent)
 			hand.isTouch = false
+			restoreBrushSize()
 		}, {passive: false})
 
 		on.touchcancel(e => {
@@ -3884,6 +3895,7 @@ registerRule(
 				}
 			}
 			hand.isTouch = false
+			restoreBrushSize()
 		}, {passive: false})
 	}
 
