@@ -3682,11 +3682,33 @@ registerRule(
 	{
 		let lastTouchX = 0
 		let lastTouchY = 0
+		let gestureActive = false
+		let lastPinchDist = 0
+		let lastMidX = 0
+		let lastMidY = 0
 
 		on.touchstart(e => {
 			e.preventDefault()
 			const touch = e.touches[0]
 			if (!touch) return
+
+			// Two-finger gesture start
+			if (e.touches.length >= 2) {
+				// Cancel any ongoing single-finger action
+				if (!gestureActive) {
+					if (hand.state.mouseup) hand.state.mouseup({clientX: touch.clientX, clientY: touch.clientY, button: 0})
+				}
+				const t0 = e.touches[0], t1 = e.touches[1]
+				lastPinchDist = Math.hypot(t1.clientX - t0.clientX, t1.clientY - t0.clientY)
+				lastMidX = (t0.clientX + t1.clientX) / 2
+				lastMidY = (t0.clientY + t1.clientY) / 2
+				gestureActive = true
+				return
+			}
+
+			// If gesture was just active, don't start drawing with the remaining finger
+			if (gestureActive) return
+
 			lastTouchX = touch.clientX
 			lastTouchY = touch.clientY
 			hand.isTouch = true
@@ -3719,6 +3741,41 @@ registerRule(
 
 		on.touchmove(e => {
 			e.preventDefault()
+
+			// Two-finger gesture: pan + pinch zoom
+			if (e.touches.length >= 2 && gestureActive) {
+				const t0 = e.touches[0], t1 = e.touches[1]
+				const dist = Math.hypot(t1.clientX - t0.clientX, t1.clientY - t0.clientY)
+				const midX = (t0.clientX + t1.clientX) / 2
+				const midY = (t0.clientY + t1.clientY) / 2
+
+				// Pan: move camera so content follows fingers
+				const dx = midX - lastMidX
+				const dy = midY - lastMidY
+				state.camera.x += dx * DPR / state.camera.scale
+				state.camera.y += dy * DPR / state.camera.scale
+
+				// Pinch zoom: scale by distance ratio, centered on midpoint
+				if (lastPinchDist > 0) {
+					const ratio = dist / lastPinchDist
+					const oldScale = state.camera.scale
+					state.camera.underScale *= ratio
+					state.camera.scale = getNeatScale(state.camera.underScale)
+					const scale = state.camera.scale / oldScale
+					state.camera.x += (1 - scale) * midX * DPR / state.camera.scale
+					state.camera.y += (1 - scale) * midY * DPR / state.camera.scale
+				}
+
+				lastPinchDist = dist
+				lastMidX = midX
+				lastMidY = midY
+				updateImageSize()
+				return
+			}
+
+			// Don't forward single-finger moves during gesture
+			if (gestureActive) return
+
 			const touch = e.touches[0]
 			if (!touch) return
 			const movementX = touch.clientX - lastTouchX
@@ -3732,21 +3789,32 @@ registerRule(
 
 		on.touchend(e => {
 			e.preventDefault()
-			hand.isTouch = false
+
+			// If was gesturing, end gesture when fewer than 2 fingers remain
+			if (gestureActive) {
+				if (e.touches.length < 2) {
+					gestureActive = false
+					// Don't resume drawing — wait for a fresh touchstart
+				}
+				return
+			}
+
 			const touch = e.changedTouches[0]
 			if (!touch) return
 			const upEvent = {clientX: touch.clientX, clientY: touch.clientY, button: 0}
 			if (hand.state.mouseup) hand.state.mouseup(upEvent)
+			hand.isTouch = false
 		}, {passive: false})
 
 		on.touchcancel(e => {
-			hand.isTouch = false
+			gestureActive = false
 			if (hand.state.mouseup) {
 				const touch = e.changedTouches[0]
 				if (touch) {
 					hand.state.mouseup({clientX: touch.clientX, clientY: touch.clientY, button: 0})
 				}
 			}
+			hand.isTouch = false
 		}, {passive: false})
 	}
 
