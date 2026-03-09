@@ -3695,10 +3695,27 @@ registerRule(
 
 		const LONG_PRESS_MS = 500
 
-		const startLongPress = (lpx, lpy) => {
+		const startLongPress = (lpx, lpy, atom) => {
 			longPressTimer = setTimeout(() => {
 				longPressTimer = undefined
 				deferredTouchStart = undefined
+
+				if (atom !== undefined && atom.rightDraggable) {
+					const x = lpx / CT_SCALE
+					const y = lpy / CT_SCALE
+					grabAtom(atom, x, y)
+					hand.content = hand.content.rightDrag(hand.content, x, y)
+					hand.pityStartX = lpx
+					hand.pityStartY = lpy
+					hand.pityStartT = 0
+					hand.hasStartedDragging = true
+					hand.touchButton = 0
+					hand.content.x = lpx / CT_SCALE * DPR + hand.offset.x
+					hand.content.y = lpy / CT_SCALE * DPR + hand.offset.y
+					changeHandState(HAND.DRAGGING)
+					return
+				}
+
 				const cell = pickCell(...getCursorView(lpx, lpy))
 				if (cell !== undefined) {
 					setBrushColour(cell.colour)
@@ -3754,7 +3771,7 @@ registerRule(
 					hand.touchButton = 0
 					changeHandState(HAND.TOUCHING)
 				}
-				startLongPress(lpx, lpy)
+				startLongPress(lpx, lpy, atom)
 			} else {
 				deferredTouchStart = () => {
 					Mouse.Left = false
