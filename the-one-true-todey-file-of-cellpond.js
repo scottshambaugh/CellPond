@@ -3858,6 +3858,10 @@ registerRule(
 			if (gestureActive) {
 				if (e.touches.length < 2) {
 					gestureActive = false
+					deferredTouchStart = undefined
+					Mouse.Left = false
+					hand.isTouch = false
+					restoreBrushSize()
 				}
 				return
 			}
@@ -3870,6 +3874,7 @@ registerRule(
 				requestAnimationFrame(() => {
 					const upEvent = {clientX: touch.clientX, clientY: touch.clientY, button: 0}
 					if (hand.state.mouseup) hand.state.mouseup(upEvent)
+					Mouse.Left = false
 					hand.isTouch = false
 					restoreBrushSize()
 				})
@@ -3880,6 +3885,7 @@ registerRule(
 			if (!touch) return
 			const upEvent = {clientX: touch.clientX, clientY: touch.clientY, button: 0}
 			if (hand.state.mouseup) hand.state.mouseup(upEvent)
+			Mouse.Left = false
 			hand.isTouch = false
 			restoreBrushSize()
 		}, {passive: false})
@@ -3894,6 +3900,7 @@ registerRule(
 					hand.state.mouseup({clientX: touch.clientX, clientY: touch.clientY, button: 0})
 				}
 			}
+			Mouse.Left = false
 			hand.isTouch = false
 			restoreBrushSize()
 		}, {passive: false})
