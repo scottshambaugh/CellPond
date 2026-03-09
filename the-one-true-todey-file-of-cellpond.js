@@ -3437,11 +3437,7 @@ registerRule(
 			if (!hand.content.dragLockX) hand.content.x = (hand.pityStartX + dampen(dx, hand.content.attached && !hand.content.noDampen)) / CT_SCALE * DPR + hand.offset.x
 			if (!hand.content.dragLockY) hand.content.y = (hand.pityStartY + dampen(dy, hand.content.attached && !hand.content.noDampen)) / CT_SCALE * DPR + hand.offset.y
 
-			if (hand.content.isPaddle) {
-				PADDLE.scroll += e.movementY / CT_SCALE * DPR
-				clampPaddleScroll()
-				positionPaddles()
-			}
+			if (hand.content.isPaddle) scrollPaddle(e)
 
 			hand.content.x = clamp(hand.content.x, hand.content.minX, hand.content.maxX)
 			hand.content.y = clamp(hand.content.y, hand.content.minY, hand.content.maxY)
@@ -3590,11 +3586,7 @@ registerRule(
 			if (!hand.content.dragLockX) hand.content.x = e.clientX / CT_SCALE * DPR + hand.offset.x
 			if (!hand.content.dragLockY) hand.content.y = e.clientY / CT_SCALE * DPR + hand.offset.y
 
-			if (hand.content.isPaddle) {
-				PADDLE.scroll += e.movementY / CT_SCALE * DPR
-				clampPaddleScroll()
-				positionPaddles()
-			}
+			if (hand.content.isPaddle) scrollPaddle(e)
 
 			hand.content.x = clamp(hand.content.x, hand.content.minX, hand.content.maxX)
 			hand.content.y = clamp(hand.content.y, hand.content.minY, hand.content.maxY)
@@ -3701,6 +3693,24 @@ registerRule(
 		let longPressTimer = undefined
 		let deferredTouchStart = undefined
 
+		const LONG_PRESS_MS = 500
+
+		const startLongPress = (lpx, lpy) => {
+			longPressTimer = setTimeout(() => {
+				longPressTimer = undefined
+				deferredTouchStart = undefined
+				const cell = pickCell(...getCursorView(lpx, lpy))
+				if (cell !== undefined) {
+					setBrushColour(cell.colour)
+				} else {
+					brushColourCycleIndex++
+					if (brushColourCycleIndex >= brushColourCycle.length) brushColourCycleIndex = 0
+					setBrushColour(brushColourCycle[brushColourCycleIndex])
+				}
+				squareTool.toolbarNeedsColourUpdate = true
+			}, LONG_PRESS_MS)
+		}
+
 		on.touchstart(e => {
 			e.preventDefault()
 			const touch = e.touches[0]
@@ -3744,19 +3754,7 @@ registerRule(
 					hand.touchButton = 0
 					changeHandState(HAND.TOUCHING)
 				}
-				longPressTimer = setTimeout(() => {
-					longPressTimer = undefined
-					deferredTouchStart = undefined
-					const cell = pickCell(...getCursorView(lpx, lpy))
-					if (cell !== undefined) {
-						setBrushColour(cell.colour)
-					} else {
-						brushColourCycleIndex++
-						if (brushColourCycleIndex >= brushColourCycle.length) brushColourCycleIndex = 0
-						setBrushColour(brushColourCycle[brushColourCycleIndex])
-					}
-					squareTool.toolbarNeedsColourUpdate = true
-				}, 500)
+				startLongPress(lpx, lpy)
 			} else {
 				deferredTouchStart = () => {
 					Mouse.Left = false
@@ -3768,19 +3766,7 @@ registerRule(
 					const downEvent = {clientX: lpx, clientY: lpy, button: 0}
 					if (hand.state.mousedown) hand.state.mousedown(downEvent)
 				}
-				longPressTimer = setTimeout(() => {
-					longPressTimer = undefined
-					deferredTouchStart = undefined
-					const cell = pickCell(...getCursorView(lpx, lpy))
-					if (cell !== undefined) {
-						setBrushColour(cell.colour)
-					} else {
-						brushColourCycleIndex++
-						if (brushColourCycleIndex >= brushColourCycle.length) brushColourCycleIndex = 0
-						setBrushColour(brushColourCycle[brushColourCycleIndex])
-					}
-					squareTool.toolbarNeedsColourUpdate = true
-				}, 500)
+				startLongPress(lpx, lpy)
 			}
 		}, {passive: false})
 
@@ -8909,6 +8895,12 @@ registerRule(
 			if (atom.isSquare && atom.expanded) atoms.push(...atom.children)
 		}
 		return atoms
+	}
+
+	const scrollPaddle = (e) => {
+		PADDLE.scroll += e.movementY / CT_SCALE * DPR
+		clampPaddleScroll()
+		positionPaddles()
 	}
 
 	const clampPaddleScroll = () => {
