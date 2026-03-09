@@ -8848,14 +8848,20 @@ registerRule(
 	}
 
 	const clampPaddleScroll = () => {
-		if (paddles.length === 0) return
+		if (paddles.length < 3) {
+			PADDLE.scroll = 0
+			return
+		}
 		let totalHeight = 0
 		for (const paddle of paddles) {
 			totalHeight += paddle.height + PADDLE_MARGIN
 		}
-		const screenBottom = innerHeight / CT_SCALE * DPR
+		let lastTwoHeight = 0
+		for (let i = paddles.length - 1; i >= paddles.length - 2; i--) {
+			lastTwoHeight += paddles[i].height + PADDLE_MARGIN
+		}
 		const maxScroll = 0
-		const minScroll = Math.min(0, (screenBottom - PADDLE.y) - totalHeight)
+		const minScroll = -(totalHeight - lastTwoHeight)
 		PADDLE.scroll = clamp(PADDLE.scroll, minScroll, maxScroll)
 	}
 
