@@ -710,8 +710,27 @@ Habitat.install = (global) => {
 			})
 			
 			global.addEventListener("mousemove", e => {
-				Mouse.position[0] = event.clientX
-				Mouse.position[1] = event.clientY
+				Mouse.position[0] = e.clientX
+				Mouse.position[1] = e.clientY
+			})
+
+			global.addEventListener("touchstart", e => {
+				const touch = e.touches[0]
+				if (!touch) return
+				Mouse.position[0] = touch.clientX
+				Mouse.position[1] = touch.clientY
+				Mouse.Left = true
+			})
+
+			global.addEventListener("touchmove", e => {
+				const touch = e.touches[0]
+				if (!touch) return
+				Mouse.position[0] = touch.clientX
+				Mouse.position[1] = touch.clientY
+			})
+
+			global.addEventListener("touchend", e => {
+				Mouse.Left = false
 			})
 			
 			Reflect.defineProperty(Mouse, "installed", {

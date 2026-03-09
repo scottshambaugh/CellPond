@@ -469,6 +469,7 @@ on.load(() => {
 	const show = Show.start({paused: false, scale: DPR})
 	const {context, canvas} = show
 	canvas.style["position"] = "absolute"
+	canvas.style["touch-action"] = "none"
 	
 	//===============//
 	// IMAGE + SIZES //
@@ -2989,7 +2990,9 @@ registerRule(
 	//colourTodeCanvas.style["image-rendering"] = "pixelated"
 	colourTodeCanvas.style["position"] = "absolute"
 	colourTodeCanvas.style["top"] = "0px"
-	
+	colourTodeCanvas.style["touch-action"] = "none"
+	document.body.style["touch-action"] = "none"
+
 	document.body.append(colourTodeCanvas)
 
 	on.resize(() => {
@@ -3436,14 +3439,16 @@ registerRule(
 			hand.content.x = clamp(hand.content.x, hand.content.minX, hand.content.maxX)
 			hand.content.y = clamp(hand.content.y, hand.content.minY, hand.content.maxY)
 
-			if (distanceFromPityStart < pity) {
-				return
-			}
+			if (!hand.isTouch) {
+				if (distanceFromPityStart < pity) {
+					return
+				}
 
-			const timeSincePityStart = Date.now() - hand.pityStartT
-			if (timeSincePityStart < DRAG_PITY_TIME) {
-				const handSpeed = Math.hypot(hand.velocity.x, hand.velocity.y)
-				if (handSpeed <= DRAG_UNPITY_SPEED) return
+				const timeSincePityStart = Date.now() - hand.pityStartT
+				if (timeSincePityStart < DRAG_PITY_TIME) {
+					const handSpeed = Math.hypot(hand.velocity.x, hand.velocity.y)
+					if (handSpeed <= DRAG_UNPITY_SPEED) return
+				}
 			}
 
 			if (!hand.content.dragLockX) hand.content.x = hand.pityStartX / CT_SCALE * DPR + hand.offset.x
@@ -3656,19 +3661,94 @@ registerRule(
 		hand.state = state
 	}
 
-	on.mousemove(e => hand.state.mousemove? hand.state.mousemove(e) : undefined)
+	on.mousemove(e => {
+		if (hand.isTouch) return
+		if (hand.state.mousemove) hand.state.mousemove(e)
+	})
 	on.mousedown(e => {
-
+		if (hand.isTouch) return
 		if (e.button === 0) if (hand.state.mousedown) hand.state.mousedown(e)
 		if (e.button === 1) if (hand.state.middlemousedown) hand.state.middlemousedown(e)
 		if (e.button === 2) if (hand.state.rightmousedown) hand.state.rightmousedown(e)
 	})
 	on.mouseup(e => {
+		if (hand.isTouch) return
 		if (e.button === 0) if (hand.state.mouseup) hand.state.mouseup(e)
 		if (e.button === 1) if (hand.state.middlemouseup) hand.state.middlemouseup(e)
 		if (e.button === 2) if (hand.state.rightmouseup) hand.state.rightmouseup(e)
-		
 	})
+
+	// Touch-to-mouse shim
+	{
+		let lastTouchX = 0
+		let lastTouchY = 0
+
+		on.touchstart(e => {
+			e.preventDefault()
+			const touch = e.touches[0]
+			if (!touch) return
+			lastTouchX = touch.clientX
+			lastTouchY = touch.clientY
+			hand.isTouch = true
+
+			const x = touch.clientX / CT_SCALE
+			const y = touch.clientY / CT_SCALE
+			const atom = getAtom(x, y)
+
+			if (atom !== undefined && atom.grabbable) {
+				grabAtom(atom, x, y)
+				hand.pityStartX = touch.clientX
+				hand.pityStartY = touch.clientY
+				hand.pityStartT = 0
+				hand.hasStartedDragging = false
+				hand.touchButton = 0
+				changeHandState(HAND.TOUCHING)
+				return
+			}
+
+			// No atom — fall back to brush/void via synthetic events
+			Mouse.Left = false
+			const moveEvent = {clientX: touch.clientX, clientY: touch.clientY, movementX: 0, movementY: 0, button: 0}
+			if (hand.state.mousemove) hand.state.mousemove(moveEvent)
+			state.cursor.previous.x = touch.clientX
+			state.cursor.previous.y = touch.clientY
+			Mouse.Left = true
+			const downEvent = {clientX: touch.clientX, clientY: touch.clientY, button: 0}
+			if (hand.state.mousedown) hand.state.mousedown(downEvent)
+		}, {passive: false})
+
+		on.touchmove(e => {
+			e.preventDefault()
+			const touch = e.touches[0]
+			if (!touch) return
+			const movementX = touch.clientX - lastTouchX
+			const movementY = touch.clientY - lastTouchY
+			lastTouchX = touch.clientX
+			lastTouchY = touch.clientY
+
+			const moveEvent = {clientX: touch.clientX, clientY: touch.clientY, movementX, movementY, button: 0}
+			if (hand.state.mousemove) hand.state.mousemove(moveEvent)
+		}, {passive: false})
+
+		on.touchend(e => {
+			e.preventDefault()
+			hand.isTouch = false
+			const touch = e.changedTouches[0]
+			if (!touch) return
+			const upEvent = {clientX: touch.clientX, clientY: touch.clientY, button: 0}
+			if (hand.state.mouseup) hand.state.mouseup(upEvent)
+		}, {passive: false})
+
+		on.touchcancel(e => {
+			hand.isTouch = false
+			if (hand.state.mouseup) {
+				const touch = e.changedTouches[0]
+				if (touch) {
+					hand.state.mouseup({clientX: touch.clientX, clientY: touch.clientY, button: 0})
+				}
+			}
+		}, {passive: false})
+	}
 
 	hand.state = HAND.FREE
 
@@ -8758,16 +8838,14 @@ registerRule(
 		x: -PADDLE.x,
 		y: PADDLE.size/2 - PADDLE.x/2,
 		touch: (atom) => atom.parent.pinhole,
-		grab: (atom) => {
-			//if (atom.parent.pinhole.locked) return 
-			return atom.parent.pinhole
-		},
+		grab: (atom) => atom.parent,
 	}
 
 	const PIN_HOLE = {
 		isPinhole: true,
 		attached: true,
 		locked: false,
+		grab: (atom) => atom.parent.parent,
 		borderScale: 1/2,
 		borderColour: Colour.Black,
 		draw: (atom) => {
