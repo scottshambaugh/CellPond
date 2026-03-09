@@ -3691,7 +3691,6 @@ registerRule(
 		if (e.button === 2) if (hand.state.rightmouseup) hand.state.rightmouseup(e)
 	})
 
-	// Touch-to-mouse shim
 	{
 		let lastTouchX = 0
 		let lastTouchY = 0
@@ -3705,9 +3704,7 @@ registerRule(
 			const touch = e.touches[0]
 			if (!touch) return
 
-			// Two-finger gesture start
 			if (e.touches.length >= 2) {
-				// Cancel any ongoing single-finger action
 				if (!gestureActive) {
 					if (hand.state.mouseup) hand.state.mouseup({clientX: touch.clientX, clientY: touch.clientY, button: 0})
 				}
@@ -3719,7 +3716,6 @@ registerRule(
 				return
 			}
 
-			// If gesture was just active, don't start drawing with the remaining finger
 			if (gestureActive) return
 
 			lastTouchX = touch.clientX
@@ -3741,7 +3737,6 @@ registerRule(
 				return
 			}
 
-			// No atom — fall back to brush/void via synthetic events
 			Mouse.Left = false
 			const moveEvent = {clientX: touch.clientX, clientY: touch.clientY, movementX: 0, movementY: 0, button: 0}
 			if (hand.state.mousemove) hand.state.mousemove(moveEvent)
@@ -3755,20 +3750,17 @@ registerRule(
 		on.touchmove(e => {
 			e.preventDefault()
 
-			// Two-finger gesture: pan + pinch zoom
 			if (e.touches.length >= 2 && gestureActive) {
 				const t0 = e.touches[0], t1 = e.touches[1]
 				const dist = Math.hypot(t1.clientX - t0.clientX, t1.clientY - t0.clientY)
 				const midX = (t0.clientX + t1.clientX) / 2
 				const midY = (t0.clientY + t1.clientY) / 2
 
-				// Pan: move camera so content follows fingers
 				const dx = midX - lastMidX
 				const dy = midY - lastMidY
 				state.camera.x += dx * DPR / state.camera.scale
 				state.camera.y += dy * DPR / state.camera.scale
 
-				// Pinch zoom: scale by distance ratio, centered on midpoint
 				if (lastPinchDist > 0) {
 					const ratio = dist / lastPinchDist
 					const oldScale = state.camera.scale
@@ -3786,7 +3778,6 @@ registerRule(
 				return
 			}
 
-			// Don't forward single-finger moves during gesture
 			if (gestureActive) return
 
 			const touch = e.touches[0]
@@ -3803,11 +3794,9 @@ registerRule(
 		on.touchend(e => {
 			e.preventDefault()
 
-			// If was gesturing, end gesture when fewer than 2 fingers remain
 			if (gestureActive) {
 				if (e.touches.length < 2) {
 					gestureActive = false
-					// Don't resume drawing — wait for a fresh touchstart
 				}
 				return
 			}
@@ -8865,9 +8854,7 @@ registerRule(
 			totalHeight += paddle.height + PADDLE_MARGIN
 		}
 		const screenBottom = innerHeight / CT_SCALE * DPR
-		// Don't push paddles below their default position
 		const maxScroll = 0
-		// Allow scrolling up enough to see the last paddle at the bottom of the screen
 		const minScroll = Math.min(0, (screenBottom - PADDLE.y) - totalHeight)
 		PADDLE.scroll = clamp(PADDLE.scroll, minScroll, maxScroll)
 	}
