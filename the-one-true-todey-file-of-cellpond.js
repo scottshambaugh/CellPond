@@ -3962,7 +3962,7 @@ registerRule(
 		grabbed.dx = 0
 		grabbed.dy = 0
 
-		if (atom.stayAtBack) bringAtomToBack(grabbed)
+		if (grabbed.stayAtBack) bringAtomToBack(grabbed)
 		else bringAtomToFront(grabbed)
 
 		return grabbed
@@ -8905,6 +8905,7 @@ registerRule(
 		paddles.push(paddle)
 		positionPaddles()
 		registerAtom(paddle)
+		bringAtomToBack(paddle)
 		return paddle
 	}
 
